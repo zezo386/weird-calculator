@@ -1,4 +1,5 @@
 import re
+import math
 
 class Variable:
     def __init__(self, factors: dict[str, int] | None = None):
@@ -70,6 +71,11 @@ class Term:
                 return True
         return False
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Term):
+            return self.coefficient == other.coefficient and self.variable == other.variable
+        return NotImplemented
+
     def __add__(self, other: object) -> object:
         if isinstance(other, Term):
             if self.variable == other.variable:
@@ -132,18 +138,31 @@ class Term:
         variable_sqrt = Variable({k: v // 2 for k, v in self.variable.factors.items()}) if self.variable else None
 
         return Term(f"{coefficient_sqrt}{variable_sqrt if variable_sqrt else ''}")
+    
+    def can_sqrt(self) -> bool:
+        return can_sqrt(self.coefficient) and (all(exp % 2 == 0 for exp in self.variable.factors.values()) if self.variable else True)
+    
+    def cbrt(self) -> object:
+        coefficient_cbrt = int(math.cbrt(self.coefficient))
+        variable_cbrt = Variable({k: v // 3 for k, v in self.variable.factors.items()}) if self.variable else None
+
+        return Term(f"{coefficient_cbrt}{variable_cbrt if variable_cbrt else ''}")
+    
+    def can_cbrt(self) -> bool:
+        return can_cbrt(self.coefficient) and (all(exp % 3 == 0 for exp in self.variable.factors.values()) if self.variable else True)
+    
             
 
 
 class Polynomial:
     def __init__(self, polynomial):
-        terms = [Term(term) for term in polynomial.replace("-", "+-").replace(" ","").split("+") if term]
+        terms = [Term(term) for term in polynomial.replace("- -", "+ ").replace("-", "+-").replace(" ","").split("+") if term]
 
         self.terms = terms
     
     def __str__(self) -> str:
         result = " + ".join([str(term) for term in self.terms])
-        result = result.replace("+-", "-").replace("+ -", "- ")
+        result = result.replace("+-", "-").replace("+ -", "- ").replace("- -", "+ ")
         
         return result
     
@@ -164,11 +183,22 @@ class Polynomial:
         if isinstance(other, int) or isinstance(other, float) or isinstance(other, Term):
             new_terms = [term * other for term in self.terms]
             return Polynomial(" + ".join([str(term) for term in new_terms]))
+        if isinstance(other, Polynomial):
+            new_terms = []
+            for term1 in self.terms:
+                for term2 in other.terms:
+                    new_terms.append(term1 * term2)
+            return simplify_polynomial(Polynomial(" + ".join([str(term) for term in new_terms])))
     
     def __floordiv__(self, other):
         if isinstance(other, int) or isinstance(other, float) or isinstance(other, Term):
             new_terms = [term // other for term in self.terms]
             return Polynomial(" + ".join([str(term) for term in new_terms]))
+    
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Polynomial):
+            return simplify_polynomial(self).terms == simplify_polynomial(other).terms
+        return NotImplemented
 
 
 class PolyProduct:
@@ -177,6 +207,12 @@ class PolyProduct:
     
     def __str__(self) -> str:
         return " * ".join([f"({str(factor)})" for factor in self.factors])
+    
+    def evaluate(self) -> object:
+        result = self.factors[0]
+        for factor in self.factors[1:]:
+            result = result * factor
+        return simplify_polynomial(result)
 
 def term_sort_key(term: Term):
     if term.variable is None:
@@ -199,6 +235,16 @@ def simplify_polynomial(polynomial: Polynomial) -> Polynomial:
     simplified_terms = sorted(simplified_terms, key=term_sort_key, reverse=True)
 
     return Polynomial(" + ".join([str(term) for term in simplified_terms]))
+
+def can_sqrt(a: int) -> bool:
+    if a>=0 and a**0.5 == int(a**0.5):
+        return True
+    return False
+
+def can_cbrt(a: int) -> bool:
+    if a**(1/3) == int(a**(1/3)):
+        return True
+    return False
 
 def gcf_two_numbers(a: int, b: int) -> int:
     while b != 0:
@@ -251,19 +297,34 @@ def get_factors(a: int) -> list[int]:
 
 def factorize_trinomial(poly: Polynomial):
     poly = simplify_polynomial(poly)
-    if len(poly.terms) != 3:
-        raise ValueError("Polynomial must have 3 terms to factorize as trinomial")
+    if len(poly.terms) == 3:
+        b = poly.terms[1].coefficient
+        c = poly.terms[0].coefficient * poly.terms[2].coefficient
 
-    b = poly.terms[1].coefficient
-    c = poly.terms[0].coefficient * poly.terms[2].coefficient
+        
 
-    
+        for factor in get_factors(c):
+            for factor2 in get_factors(c):
+                if factor * factor2 == c:
+                    if factor + factor2 == b:
+                        result =  PolyProduct([Polynomial(f"{poly.terms[0].sqrt()} + {factor}"), Polynomial(f"{poly.terms[0].sqrt()} + {factor2}")])
+                        if result.evaluate() == poly:
+                            return result
 
-    for factor in get_factors(c):
-        for factor2 in get_factors(c):
-            if factor * factor2 == c:
-                if factor + factor2 == b:
-                    return PolyProduct([Polynomial(f"{poly.terms[0].sqrt()} + {factor}"), Polynomial(f"{poly.terms[0].sqrt()} + {factor2}")])
+
+    if len(poly.terms) == 2:
+        if poly.terms[0].can_sqrt() and (poly.terms[1]*-1).can_sqrt():
+            result = PolyProduct([Polynomial(f"{poly.terms[0].sqrt()} + {(poly.terms[1]*-1).sqrt()}"), Polynomial(f"{poly.terms[0].sqrt()} - {(poly.terms[1]*-1).sqrt()}")])
+            if result.evaluate() == poly:
+                return result
+        
+        if poly.terms[0].can_cbrt() and poly.terms[0].can_cbrt():
+            a = poly.terms[0].cbrt()
+            b = poly.terms[1].cbrt()
+            result = PolyProduct([Polynomial(f"{a} + {b}"), Polynomial(f"{a*a} - {a*b} + {b*b}")])
+            if result.evaluate() == poly:
+                return result
+        
 
 
 
@@ -280,7 +341,7 @@ def factorize_polynomial(poly: Polynomial):
 
 
 
-p1 = Polynomial("-x+ x^2 - 12")
+p1 = Polynomial("x^3 + 27")
 
 print(factorize_trinomial(p1))
 
