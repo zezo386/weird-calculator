@@ -486,3 +486,4 @@ class Fraction:
                 new_den = self.denomenator.evaluate() * other.denomenator.evaluate()
             return Fraction(PolyProduct([new_num]), PolyProduct([new_den])).cancle_common()
         return NotImplemented
+
