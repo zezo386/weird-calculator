@@ -1,6 +1,5 @@
 import re
 import math
-import time
 
 class Variable:
     def __init__(self, factors: dict[str, int] | None = None):
@@ -163,7 +162,7 @@ class Polynomial:
     
     def __str__(self) -> str:
         result = " + ".join([str(term) for term in self.terms])
-        result = result.replace("+-", "-").replace("+ -", "- ").replace("- -", "+ ")
+        result = result.replace("- -", "+ ").replace("+-", "-").replace("+ -", "- ")
         
         return result
     
@@ -212,6 +211,13 @@ class PolyProduct:
     def __repr__(self) -> str:
         return f"PolyProduct({self.factors})"
     
+    def __eq__(self, other):
+        if isinstance(other, PolyProduct):
+            if len(self.factors) != len(other.factors):
+                return False
+            return sorted(map(str, self.factors)) == sorted(map(str, other.factors))
+        return NotImplemented
+    
     def __mul__(self, other: object) -> object:
         if isinstance(other, PolyProduct):
             return PolyProduct(self.factors + other.factors)
@@ -220,6 +226,8 @@ class PolyProduct:
     
 
     def evaluate(self) -> object:
+        if not self.factors:
+            return Polynomial("1")
         result = self.factors[0]
         for factor in self.factors[1:]:
             result = result * factor
@@ -403,3 +411,78 @@ def factorize_polynomial(poly: Polynomial):
 
     return PolyProduct(factors)
 
+class Fraction:
+    def __init__(self, numerator: PolyProduct, denomenator: PolyProduct):
+        self.numerator = numerator
+        self.denomenator = denomenator
+    
+    def __str__(self) -> str:
+        return f"({self.numerator}) / ({self.denomenator})"
+    
+    def __repr__(self) -> str:
+        return f"Fraction({self.numerator}, {self.denomenator})"
+    
+    def __mul__(self, other: object) -> object:
+        if isinstance(other, Fraction):
+            return Fraction(self.numerator * other.numerator, self.denomenator * other.denomenator).cancle_common()
+        if isinstance(other, PolyProduct) or isinstance(other, Polynomial):
+            return Fraction(self.numerator * other, self.denomenator).cancle_common()
+        return NotImplemented
+    
+    def __floordiv__(self, other: object) -> object:
+        if isinstance(other, Fraction):
+            return Fraction(self.numerator * other.denomenator, self.denomenator * other.numerator).cancle_common()
+        if isinstance(other, PolyProduct) or isinstance(other, Polynomial):
+            return Fraction(self.numerator, self.denomenator * other).cancle_common()
+        return NotImplemented
+    
+    def cancle_common(self):
+        num_factors = []
+        den_factors = []
+
+        for factor in self.numerator.factors:
+            num_factors.extend(factorize_polynomial(factor).factors)
+        for factor in self.denomenator.factors:
+            den_factors.extend(factorize_polynomial(factor).factors)
+
+        # cancel matching factors (O(n^2) but fine for small lists)
+        i = 0
+        while i < len(num_factors):
+            match = next((j for j, d in enumerate(den_factors)
+                        if num_factors[i] == d), None)
+            if match is not None:
+                num_factors.pop(i)
+                den_factors.pop(match)
+            else:
+                i += 1
+
+        if not num_factors:
+            num_factors = [Polynomial("1")]
+        if not den_factors:
+            den_factors = [Polynomial("1")]
+
+        return Fraction(PolyProduct(num_factors), PolyProduct(den_factors))
+
+    def __add__(self, other):
+        if isinstance(other, Fraction):
+            if self.denomenator == other.denomenator:
+                new_num = self.numerator.evaluate() + other.numerator.evaluate()
+                new_den = self.denomenator.evaluate()
+            else:
+                new_num = (self.numerator.evaluate() * other.denomenator.evaluate()
+                        + other.numerator.evaluate() * self.denomenator.evaluate())
+                new_den = self.denomenator.evaluate() * other.denomenator.evaluate()
+            return Fraction(PolyProduct([new_num]), PolyProduct([new_den])).cancle_common()
+        return NotImplemented
+    
+    def __sub__(self, other):
+        if isinstance(other, Fraction):
+            if self.denomenator == other.denomenator:
+                new_num = self.numerator.evaluate() - other.numerator.evaluate()
+                new_den = self.denomenator.evaluate()
+            else:
+                new_num = (self.numerator.evaluate() * other.denomenator.evaluate()
+                        - other.numerator.evaluate() * self.denomenator.evaluate())
+                new_den = self.denomenator.evaluate() * other.denomenator.evaluate()
+            return Fraction(PolyProduct([new_num]), PolyProduct([new_den])).cancle_common()
+        return NotImplemented
