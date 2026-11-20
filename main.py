@@ -1,18 +1,22 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from terms import *
+from terms import (
+    Polynomial, Term, PolyProduct, Fraction,
+    simplify_polynomial, factorize_polynomial,
+)
+
 
 class CalculatorApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Weird Fraction Calculator")
+        self.root.title("Weird fraction Calculator")
         self.root.geometry("600x400")
 
-        input_frame = tk.Frame(self.root)
+        input_frame = ttk.Frame(root, padding=8)
         input_frame.pack(fill=tk.X)
 
-        ttk.Label(input_frame, text="Enter a weird fraction to calculate:").pack(side=tk.LEFT, padx = 5)
+        ttk.Label(input_frame, text="enter your mathy thing here:").pack(side=tk.LEFT)
         self.entry = ttk.Entry(input_frame, font=("Consolas", 12))
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8)
         self.entry.bind("<Return>", lambda e: self.compute())
@@ -41,7 +45,7 @@ class CalculatorApp:
         hint = (
             "Examples:\n"
             "  simplify:  x^2 + 5x + 6\n"
-            "  factor:    x^2 + 5x + 6  →  (x + 2) * (x + 3)\n"
+            "  factor:    x^2 + 5x + 6\n"
             "  evaluate fraction:  (x^2 - 9) / (x + 3)\n"
             "  multiply fractions:  (x^2 - 9)/(x+3) * (x+3)/(x-3)\n"
             "  add fractions:       (5x-8)/(x-3) + (2x+1)/(x-3)"
@@ -74,10 +78,10 @@ class CalculatorApp:
             self._show(str(result))
 
         except Exception as e:
-            tk.messagebox.showerror("Error", f"{type(e).__name__}: {e}")
+            messagebox.showerror("Error", f"{type(e).__name__}: {e}")
             self._show(f"ERROR: {e}")
-    
-    def _parse_fraction(self, expr: str) -> Fraction:
+
+    def _parse_fraction(self, s: str) -> Fraction:
         s = s.strip()
         if "/" not in s:
             return Fraction(
@@ -113,6 +117,7 @@ class CalculatorApp:
         self.entry.delete(0, tk.END)
         self.output.delete("1.0", tk.END)
 
+
 if __name__ == "__main__":
     root = tk.Tk()
     style = ttk.Style()
@@ -122,13 +127,3 @@ if __name__ == "__main__":
         pass
     CalculatorApp(root)
     root.mainloop()
-
-
-
-
-
-
-
-
-
-
