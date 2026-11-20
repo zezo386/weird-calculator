@@ -1,5 +1,6 @@
 import re
 import math
+import time
 
 class Variable:
     def __init__(self, factors: dict[str, int] | None = None):
@@ -208,6 +209,16 @@ class PolyProduct:
     def __str__(self) -> str:
         return " * ".join([f"({str(factor)})" for factor in self.factors])
     
+    def __repr__(self) -> str:
+        return f"PolyProduct({self.factors})"
+    
+    def __mul__(self, other: object) -> object:
+        if isinstance(other, PolyProduct):
+            return PolyProduct(self.factors + other.factors)
+        if isinstance(other, Polynomial):
+            return PolyProduct(self.factors + [other])
+    
+
     def evaluate(self) -> object:
         result = self.factors[0]
         for factor in self.factors[1:]:
@@ -237,14 +248,11 @@ def simplify_polynomial(polynomial: Polynomial) -> Polynomial:
     return Polynomial(" + ".join([str(term) for term in simplified_terms]))
 
 def can_sqrt(a: int) -> bool:
-    if a>=0 and a**0.5 == int(a**0.5):
-        return True
-    return False
+    return a >= 0 and math.isqrt(a) ** 2 == a
 
 def can_cbrt(a: int) -> bool:
-    if a**(1/3) == int(a**(1/3)):
-        return True
-    return False
+    r = round(math.cbrt(a))
+    return r ** 3 == a
 
 def gcf_two_numbers(a: int, b: int) -> int:
     while b != 0:
@@ -284,6 +292,9 @@ def get_polynomial_gcf(polynomial: Polynomial) -> Term:
             common = set(variable_gcf.factors) & set(term.variable.factors)
             variable_gcf = Variable({k: min(variable_gcf.factors[k], term.variable.factors[k]) for k in common})
     
+    if polynomial.terms[0].coefficient < 0:
+        coefficient_gcf *= -1
+
     return Term(f"{coefficient_gcf}{variable_gcf if variable_gcf else ''}")
 
 def get_factors(a: int) -> list[int]:
@@ -298,18 +309,25 @@ def get_factors(a: int) -> list[int]:
 def factorize_trinomial(poly: Polynomial):
     poly = simplify_polynomial(poly)
     if len(poly.terms) == 3:
-        b = poly.terms[1].coefficient
-        c = poly.terms[0].coefficient * poly.terms[2].coefficient
+        t0, t1, t2 = poly.terms
+        a, b, c = t0.coefficient, t1.coefficient, t2.coefficient
 
-        
-
-        for factor in get_factors(c):
-            for factor2 in get_factors(c):
-                if factor * factor2 == c:
-                    if factor + factor2 == b:
-                        result =  PolyProduct([Polynomial(f"{poly.terms[0].sqrt()} + {factor}"), Polynomial(f"{poly.terms[0].sqrt()} + {factor2}")])
-                        if result.evaluate() == poly:
-                            return result
+        for p in get_factors(a):
+            if p == 0 or a % p != 0:
+                continue
+            r = a // p
+            for m in get_factors(c):
+                if m == 0 or c % m != 0:
+                    continue
+                n = c // m
+                if p * n + r * m != b:      # cross-multiplication check
+                    continue
+                result = PolyProduct([
+                    Polynomial(f"{p}x + {m}"),
+                    Polynomial(f"{r}x + {n}"),
+                ])
+                if result.evaluate() == poly:
+                    return result
 
 
     if len(poly.terms) == 2:
@@ -318,35 +336,72 @@ def factorize_trinomial(poly: Polynomial):
             if result.evaluate() == poly:
                 return result
         
-        if poly.terms[0].can_cbrt() and poly.terms[0].can_cbrt():
+        if poly.terms[0].can_cbrt() and poly.terms[1].can_cbrt():
             a = poly.terms[0].cbrt()
             b = poly.terms[1].cbrt()
             result = PolyProduct([Polynomial(f"{a} + {b}"), Polynomial(f"{a*a} - {a*b} + {b*b}")])
             if result.evaluate() == poly:
                 return result
         
+    return None
 
+def factorize_by_grouping(poly: Polynomial):
+    poly = simplify_polynomial(poly)
+    for i in range(len(poly.terms) - 1):
+        for j in range(i, len(poly.terms) - 1):
+            group1 = Polynomial(" + ".join([str(term) for term in poly.terms[i:j+1]]))
+            group2 = Polynomial(" + ".join([str(term) for term in poly.terms[:i] + poly.terms[j+1:]]))
 
+            gcf1 = get_polynomial_gcf(group1)
+            gcf2 = get_polynomial_gcf(group2)
 
-    
+            remaining1 = group1 // gcf1
+            remaining2 = group2 // gcf2
+
+            if (gcf1 == remaining2 or gcf2 == remaining1 or remaining1 == remaining2):
+                if gcf1 == remaining2:
+                    return PolyProduct([gcf1, Polynomial(f"{remaining1} + {remaining2}")])
+                elif gcf2 == remaining1:
+                    return PolyProduct([gcf2, Polynomial(f"{remaining1} + {remaining2}")])
+                elif remaining1 == remaining2:
+                    return PolyProduct([remaining1, Polynomial(f"{gcf1} + {gcf2}")])
+    return None
+
+                
+
 
 def factorize_polynomial(poly: Polynomial):
     gcf_term = get_polynomial_gcf(poly)
 
-    remaining_poly = poly // gcf_term
+    poly = poly // gcf_term
 
-    current_result = PolyProduct([Polynomial(str(gcf_term)), remaining_poly])
+    factors = [Polynomial(str(gcf_term))] if gcf_term != Term("1") else []
 
-    return current_result
+    changed = True
+    while changed:
+        changed = False
+        poly = simplify_polynomial(poly)
 
+        grouped = factorize_by_grouping(poly)
+        if grouped is not None:
+            for f in grouped.factors:
+                factors.append(f)
+            return PolyProduct(factors)
+        
+        tri = factorize_trinomial(poly)
+        if tri is not None:
+            factors.extend(tri.factors)
+            return PolyProduct(factors)
 
+        # nothing worked
+        break
 
-p1 = Polynomial("x^3 + 27")
+    # 3. whatever's left is irreducible (as far as we know) — keep it
+    if str(poly) != "1":
+        factors.append(poly)
 
-print(factorize_trinomial(p1))
+    if not factors:
+        factors = [Polynomial("1")]    
 
-
-
-
-
+    return PolyProduct(factors)
 
