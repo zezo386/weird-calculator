@@ -87,6 +87,11 @@ class Term:
                 raise ValueError("Cannot subtract terms with different variables.")
     
     def __mul__(self, other: object) -> object:
+        if isinstance(other, int) or isinstance(other, float):
+            coefficient = self.coefficient * other
+            variable = self.variable if self.variable else None
+            return Term(f"{coefficient}{variable if variable else ''}")
+
         if isinstance(other, Term):
             coefficient = self.coefficient * other.coefficient
 
@@ -101,6 +106,11 @@ class Term:
             return Term(f"{coefficient}{variable if variable else ''}")
     
     def __floordiv__(self, other: object) -> object:
+        if isinstance(other, int) or isinstance(other, float):
+            coefficient = self.coefficient // other
+            variable = self.variable if self.variable else None
+            return Term(f"{coefficient}{variable if variable else ''}")
+
         if isinstance(other, Term):
             coefficient = self.coefficient // other.coefficient
 
@@ -113,6 +123,15 @@ class Term:
             else:
                 variable = None
             return Term(f"{coefficient}{variable if variable else ''}")
+    
+    def sqrt(self) -> object:
+        if self.coefficient < 0:
+            raise ValueError("Cannot take square root of negative term")
+        
+        coefficient_sqrt = int(self.coefficient ** 0.5)
+        variable_sqrt = Variable({k: v // 2 for k, v in self.variable.factors.items()}) if self.variable else None
+
+        return Term(f"{coefficient_sqrt}{variable_sqrt if variable_sqrt else ''}")
             
 
 
@@ -142,12 +161,29 @@ class Polynomial:
         return NotImplemented
 
     def __mul__(self, other):
-        if isinstance(other, int) or isinstance(other, float):
-            new_terms = [Term(f"{term.coefficient * other}{term.variable if term.variable else ''}") for term in self.terms]
+        if isinstance(other, int) or isinstance(other, float) or isinstance(other, Term):
+            new_terms = [term * other for term in self.terms]
+            return Polynomial(" + ".join([str(term) for term in new_terms]))
+    
+    def __floordiv__(self, other):
+        if isinstance(other, int) or isinstance(other, float) or isinstance(other, Term):
+            new_terms = [term // other for term in self.terms]
             return Polynomial(" + ".join([str(term) for term in new_terms]))
 
 
+class PolyProduct:
+    def __init__(self, factors: list[Polynomial]):
+        self.factors = factors
     
+    def __str__(self) -> str:
+        return " * ".join([f"({str(factor)})" for factor in self.factors])
+
+def term_sort_key(term: Term):
+    if term.variable is None:
+        return (0, ())
+    degree = sum(term.variable.factors.values())
+    letters = tuple(sorted(term.variable.factors.items()))
+    return (degree, letters)
 
 def simplify_polynomial(polynomial: Polynomial) -> Polynomial:
     existing_terms = dict()
@@ -159,6 +195,8 @@ def simplify_polynomial(polynomial: Polynomial) -> Polynomial:
             existing_terms[term.variable] = term.coefficient
 
     simplified_terms = [Term(f"{coefficient}{variable if variable else ''}") for variable, coefficient in existing_terms.items() if coefficient != 0]
+
+    simplified_terms = sorted(simplified_terms, key=term_sort_key, reverse=True)
 
     return Polynomial(" + ".join([str(term) for term in simplified_terms]))
 
@@ -201,3 +239,53 @@ def get_polynomial_gcf(polynomial: Polynomial) -> Term:
             variable_gcf = Variable({k: min(variable_gcf.factors[k], term.variable.factors[k]) for k in common})
     
     return Term(f"{coefficient_gcf}{variable_gcf if variable_gcf else ''}")
+
+def get_factors(a: int) -> list[int]:
+    result = []
+    for i in range(1, abs(a) + 1):
+        if a % i == 0:
+            result.append(i)
+            result.append(-i)
+
+    return result
+
+def factorize_trinomial(poly: Polynomial):
+    poly = simplify_polynomial(poly)
+    if len(poly.terms) != 3:
+        raise ValueError("Polynomial must have 3 terms to factorize as trinomial")
+
+    b = poly.terms[1].coefficient
+    c = poly.terms[0].coefficient * poly.terms[2].coefficient
+
+    
+
+    for factor in get_factors(c):
+        for factor2 in get_factors(c):
+            if factor * factor2 == c:
+                if factor + factor2 == b:
+                    return PolyProduct([Polynomial(f"{poly.terms[0].sqrt()} + {factor}"), Polynomial(f"{poly.terms[0].sqrt()} + {factor2}")])
+
+
+
+    
+
+def factorize_polynomial(poly: Polynomial):
+    gcf_term = get_polynomial_gcf(poly)
+
+    remaining_poly = poly // gcf_term
+
+    current_result = PolyProduct([Polynomial(str(gcf_term)), remaining_poly])
+
+    return current_result
+
+
+
+p1 = Polynomial("-x+ x^2 - 12")
+
+print(factorize_trinomial(p1))
+
+
+
+
+
+
