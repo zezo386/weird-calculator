@@ -320,7 +320,7 @@ def factorize_trinomial(poly: Polynomial):
                 if m == 0 or c % m != 0:
                     continue
                 n = c // m
-                if p * n + r * m != b:      # cross-multiplication check
+                if p * n + r * m != b:
                     continue
                 result = PolyProduct([
                     Polynomial(f"{p}x + {m}"),
@@ -393,10 +393,8 @@ def factorize_polynomial(poly: Polynomial):
             factors.extend(tri.factors)
             return PolyProduct(factors)
 
-        # nothing worked
         break
 
-    # 3. whatever's left is irreducible (as far as we know) — keep it
     if str(poly) != "1":
         factors.append(poly)
 
