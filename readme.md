@@ -1,5 +1,8 @@
 # Weird Calculator
 
+<img width="596" height="443" alt="image" src="https://github.com/user-attachments/assets/177dc377-fdab-4e81-8117-d3465b403cd9" />
+
+
 ## Tech stack
 
 this app is made using python and the gui is made using tkinter
